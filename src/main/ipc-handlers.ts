@@ -71,31 +71,96 @@ function getCaptureBounds(sourceId: string, displayId?: string | null) {
   return fallbackBounds
 }
 
+function parseSaveDialogOptions(
+  optionsInput:
+    | string
+    | {
+        defaultName: string
+        filters?: Array<{ name: string; extensions: string[] }>
+      }
+): { defaultName: string; filters?: Array<{ name: string; extensions: string[] }> } | null {
+  const optionsArg = typeof optionsInput === 'string' ? { defaultName: optionsInput } : optionsInput
+  if (!optionsArg || typeof optionsArg.defaultName !== 'string' || optionsArg.defaultName.trim() === '') {
+    return null
+  }
+  const defaultName = optionsArg.defaultName.trim()
+  if (optionsArg.filters === undefined) {
+    return { defaultName }
+  }
+  if (!Array.isArray(optionsArg.filters)) {
+    return { defaultName }
+  }
+
+  const sanitizedFilters = optionsArg.filters
+    .map((filter) => {
+      if (!filter || typeof filter.name !== 'string' || filter.name.trim() === '') {
+        return null
+      }
+      const filterName = filter.name.trim()
+      if (!Array.isArray(filter.extensions)) {
+        return null
+      }
+      const sanitizedExtensions = filter.extensions
+        .map((extension) => (typeof extension === 'string' ? extension.trim() : ''))
+        .filter((extension) => extension !== '')
+      return sanitizedExtensions.length > 0
+        ? { name: filterName, extensions: sanitizedExtensions }
+        : null
+    })
+    .filter((filter): filter is { name: string; extensions: string[] } => filter !== null)
+
+  if (sanitizedFilters.length === 0) {
+    return { defaultName }
+  }
+
+  return { defaultName, filters: sanitizedFilters }
+}
+
 export function registerIpcHandlers(): void {
   ipcMain.handle('get-sources', async () => {
     return getDesktopSources()
   })
 
-  ipcMain.handle('show-save-dialog', async (_event, defaultName: string) => {
-    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
-    const options: Electron.SaveDialogOptions = {
-      defaultPath: defaultName,
-      filters: [
-        { name: 'WebM Video', extensions: ['webm'] },
-        { name: 'All Files', extensions: ['*'] }
-      ]
-    }
-    const result = win
-      ? await dialog.showSaveDialog(win, options)
-      : await dialog.showSaveDialog(options)
+  ipcMain.handle(
+    'show-save-dialog',
+    async (
+      _event,
+      optionsInput:
+        | string
+        | {
+            defaultName: string
+            filters?: Array<{ name: string; extensions: string[] }>
+          }
+    ) => {
+      const parsedOptions = parseSaveDialogOptions(optionsInput)
+      if (!parsedOptions) {
+        return {
+          canceled: true,
+          saveToken: null,
+          error: 'Invalid save dialog options: defaultName must be a non-empty string'
+        }
+      }
+      const defaultName = parsedOptions.defaultName
+      const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+      const options: Electron.SaveDialogOptions = {
+        defaultPath: defaultName,
+        filters: parsedOptions.filters ?? [
+          { name: 'WebM Video', extensions: ['webm'] },
+          { name: 'All Files', extensions: ['*'] }
+        ]
+      }
+      const result = win
+        ? await dialog.showSaveDialog(win, options)
+        : await dialog.showSaveDialog(options)
 
-    if (!result.canceled && result.filePath) {
-      const token = randomUUID()
-      pendingSavePaths.set(token, { filePath: result.filePath, expiresAt: Date.now() + TOKEN_TTL_MS })
-      return { canceled: false, saveToken: token }
+      if (!result.canceled && result.filePath) {
+        const token = randomUUID()
+        pendingSavePaths.set(token, { filePath: result.filePath, expiresAt: Date.now() + TOKEN_TTL_MS })
+        return { canceled: false, saveToken: token }
+      }
+      return { canceled: true, saveToken: null }
     }
-    return { canceled: true, saveToken: null }
-  })
+  )
 
   // Accepts a one-time token (from show-save-dialog) instead of a raw file path to
   // prevent an arbitrary file-write primitive if the renderer is ever compromised.

